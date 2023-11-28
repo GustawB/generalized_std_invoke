@@ -8,11 +8,57 @@
 #include <array>
 #include <tuple>
 
+//https://en.cppreference.com/w/cpp/utility/functional/bind_front
+
 // Namespace containing all helper functions, naming based on the
 // std::invoke documentation available here:
 // https://en.cppreference.com/w/cpp/utility/functional/invoke
 namespace detail
 {
+	/////////////////////////////////////////////////////////////////////////////////////////////////
+	//https://stackoverflow.com/questions/15411022/how-do-i-replace-a-tuple-element-at-compile-time
+	//https://stackoverflow.com/questions/15411022/how-do-i-replace-a-tuple-element-at-compile-time
+	/////////////////////////////////////////////////////////////////////////////////////////////////
+
+	template <typename T>
+	constexpr size_t paramLength(T)
+	{
+		return 1;
+	}
+
+	template <class T, T... ints>
+	constexpr size_t paramLength(std::integer_sequence<T, ints...>)
+	{
+		return sizeof...(ints);
+	}
+
+	//Doesn't work for empty Args
+	template <class T, class... Args>
+	constexpr size_t nmbOfInvokes(T&& t, Args&&... args)
+	{
+		return (sizeof...(Args) == 0) ? paramLength(t) : 
+			paramLength(t) * nmbOfInvokes<T, Args...>(t, args...);
+	}
+
+	template <class T>
+	concept is_intseq = requires (T a)
+	{
+		//Invoking this lambda to check the concept condition. 
+		[] <class U, U... ints> (std::integer_sequence<U, ints...>) {}(a);
+	};
+
+	template <class F>
+	concept is_void = requires()
+	{
+		std::is_same<std::invoke_result_t<F>, void>::value == true;
+	};
+
+	template <class F>
+	concept is_not_void = requires()
+	{
+		std::is_same<std::invoke_result_t<F>, void>::value == false;
+	};
+
 	template <class type_to_check, class Arg>
 	constexpr bool compareTypes(Arg&& arg)
 	{
@@ -25,41 +71,33 @@ namespace detail
 		return (... && compareTypes(std::forward<Args>(args)));
 	}
 
+	template <class F, class... Args>
+	requires is_void<F>
+	constexpr void invoke()
+	{
+		
+	};
+
 	// Function used to recursively perform all calls of F.
 	template <class F, class... Args>
-	struct invoke
+	requires is_not_void<F>
+	constexpr void invoke()
 	{
-		static constexpr void run()
-		{
-			//I guess there are no more params, only function, so we can invoke it. 
-		}
+		constexpr size_t result_size = detail::nmbOfInvokes(args...);
 	};
 } // namespace detail
-
-template<class T>
-concept is_intseq = requires (T a)
-{
-	[] <class U, U... ints> (std::integer_sequence<U, ints...>) {}(a);
-};
 
 template <class F, class... Args>
 constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
 {// Delay the type deduction to the end of the function execution. 
-	if constexpr (!(... && is_intseq<decltype(args)>))
+	if constexpr (!(... || detail::is_intseq<decltype(args)>))
 	{
 		// There was no integer sequence passed, so we can just use std::invoke.
 		return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
 	}
 	else
 	{
-		std::tuple<Args...> argsTuple;
-		for (size_t i = 0; i < std::tuple_size<decltype(argsTuple)>::value; ++i)
-		{
-			if constexpr (is_intseq<decltype(std::get<i>(argsTuple))>)
-			{
-
-			}
-		}
+		using returnType = std::invoke_result_t<F>;
 		// TODO: recursive bullshit
 	}
 }
