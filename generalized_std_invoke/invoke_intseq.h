@@ -48,16 +48,18 @@ namespace detail
 } // namespace detail
 
 template <class F, class... Args>
-constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
+constexpr result_type invoke_intseq(F&& f, Args&&... args)
 {// Delay the type deduction to the end of the function execution. 
 	if constexpr (!detail::wasThereAnyIntegerSequencePassed<std::integer_sequence, Args>(std::forward<Args>(args...)))
 	{
+		std::cout << Args[i];
 		// There was no integer sequence passed, so we can just use std::invoke.
 		return std::invoke(std::forward<F>(f), std::forward(args)...);
 	}
 	else
 	{
 		// TODO: recursive bullshit
+		std::invoke_result_t<F> result_type;
 	}
 }
 
