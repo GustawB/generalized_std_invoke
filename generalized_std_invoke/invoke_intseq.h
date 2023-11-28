@@ -36,20 +36,26 @@ namespace detail
 	};
 } // namespace detail
 
+template<class T>
+concept is_intseq = requires (T a)
+{
+	[] <class U, U... ints> (std::integer_sequence<U, ints...>) {}(a);
+};
+
 template <class F, class... Args>
 constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
 {// Delay the type deduction to the end of the function execution. 
-	if constexpr (!detail::wasThereAnyIntegerSequencePassed<std::integer_sequence, Args...>(std::forward<Args...>(args...)))
+	if constexpr (!(... && is_intseq<decltype(args)>))
 	{
 		// There was no integer sequence passed, so we can just use std::invoke.
-		return std::invoke(std::forward<F>(f), std::forward(args)...);
+		return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
 	}
 	else
 	{
 		std::tuple<Args...> argsTuple;
 		for (size_t i = 0; i < std::tuple_size<decltype(argsTuple)>::value; ++i)
 		{
-			if constexpr (std::is_same<decltype(std::get<i>(argsTuple)), std::integer_sequence>)
+			if constexpr (is_intseq<decltype(std::get<i>(argsTuple))>)
 			{
 
 			}
