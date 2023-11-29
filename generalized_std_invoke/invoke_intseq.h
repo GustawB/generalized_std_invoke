@@ -18,6 +18,25 @@ namespace detail
 	/////////////////////////////////////////////////////////////////////////////////////////////////
 	//https://stackoverflow.com/questions/15411022/how-do-i-replace-a-tuple-element-at-compile-time
 	/////////////////////////////////////////////////////////////////////////////////////////////////
+	
+	template <typename T>
+	constexpr decltype(auto) paramType(T)
+	{
+		return std::tuple<T>();
+	}
+
+	template <class T, T... ints>
+	constexpr decltype(auto) paramLength(std::integer_sequence<T, ints...>)
+	{
+		return std::tuple<std::integral_constant<T, ints...>>();
+	}
+
+	template <class T, class... Args>
+	constexpr auto invokeParamsType(T&& t, Args&&... args) -> std::tuple<Args...>
+	{
+		return (sizeof...(Args) == 0) ? paramType(t) :
+			std::tuple_cat(paramType(t), invokeParamsType<T, Args...>(t, args...));
+	}
 
 	template <class T>
 	concept is_intseq = requires (T a)
@@ -26,16 +45,16 @@ namespace detail
 		[] <class U, U... ints> (std::integer_sequence<U, ints...>) {}(a);
 	};
 
-	template <class F>
+	template <class F, class... Args>
 	concept is_void = requires()
 	{
-		std::is_same<std::invoke_result_t<F>, void>::value == true;
+		std::is_same<std::invoke_result<F>, void>::value == true;
 	};
 
 	template <class F>
 	concept is_not_void = requires()
 	{
-		std::is_same<std::invoke_result_t<F>, void>::value == false;
+		std::is_same<std::invoke_result<F>, void>::value == false;
 	};
 
 	template <typename T>
@@ -105,6 +124,7 @@ constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
 	}
 	else
 	{
+
 		// TODO: recursive bullshit
 	}
 }
