@@ -18,24 +18,31 @@ namespace detail
 	/////////////////////////////////////////////////////////////////////////////////////////////////
 	//https://stackoverflow.com/questions/15411022/how-do-i-replace-a-tuple-element-at-compile-time
 	/////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
+	template <typename>
+	constexpr std::tuple<> paramType()
+	{
+		return std::tuple<>();
+	}
+
 	template <typename T>
-	constexpr decltype(auto) paramType(T)
+	constexpr std::tuple<T> paramType(T)
 	{
 		return std::tuple<T>();
 	}
 
 	template <class T, T... ints>
-	constexpr decltype(auto) paramLength(std::integer_sequence<T, ints...>)
+	constexpr std::tuple<T> paramType(std::integer_sequence<T, ints...>)
 	{
-		return std::tuple<std::integral_constant<T, ints...>>();
+		return std::tuple<T>();
 	}
 
+	//Doesn't work for empty Args
 	template <class T, class... Args>
-	constexpr auto invokeParamsType(T&& t, Args&&... args) -> std::tuple<Args...>
+	constexpr auto invokeResultType(T&& t, Args&&... args) -> decltype(auto)
 	{
 		return (sizeof...(Args) == 0) ? paramType(t) :
-			std::tuple_cat(paramType(t), invokeParamsType<T, Args...>(t, args...));
+			std::tuple_cat<paramType(t), invokeResultType<T, Args...>(t, args...)>();
 	}
 
 	template <class T>
@@ -46,7 +53,7 @@ namespace detail
 	};
 
 	template <class F, class... Args>
-	concept is_void = requires()
+	concept is_void = requires(Args&&... args)
 	{
 		std::is_same<std::invoke_result<F>, void>::value == true;
 	};
@@ -73,7 +80,7 @@ namespace detail
 	template <class T, class... Args>
 	constexpr size_t nmbOfInvokes(T&& t, Args&&... args)
 	{
-		return (sizeof...(Args) == 0) ? paramLength(t) : 
+		return (sizeof...(Args) == 0) ? paramLength(t) :
 			paramLength(t) * nmbOfInvokes<T, Args...>(t, args...);
 	}
 
@@ -91,15 +98,15 @@ namespace detail
 
 	template <class F, class... Args>
 	requires is_void<F>
-	constexpr void invoke()
+		constexpr void invoke()
 	{
-		
+
 	};
 
 	// Function used to recursively perform all calls of F.
 	template <class F, class... Args>
 	requires is_not_void<F>
-	constexpr void invoke(F&& f, Args&&... args)
+		constexpr void invoke(F&& f, Args&&... args)
 	{
 		constexpr size_t result_size = detail::nmbOfInvokes(args...);
 		std::array<std::invoke_result_t<F>, result_size> invokeResults;
@@ -108,9 +115,9 @@ namespace detail
 
 	template <class F, class... Args, size_t SIZE>
 	requires is_not_void<F>
-		constexpr void invoke (F&& f, const std::array<std::invoke_result_t<F>, SIZE>, size_t index, Args&&... args)
+		constexpr void invoke(F&& f, const std::array<std::invoke_result_t<F>, SIZE>, size_t index, Args&&... args)
 	{
-		
+
 	};
 } // namespace detail
 
@@ -124,7 +131,7 @@ constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
 	}
 	else
 	{
-
+		constexpr std::tuple<int, int> sexu = detail::invokeResultType(args...);
 		// TODO: recursive bullshit
 	}
 }
