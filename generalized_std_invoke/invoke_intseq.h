@@ -15,10 +15,6 @@
 // https://en.cppreference.com/w/cpp/utility/functional/invoke
 namespace detail
 {
-	/////////////////////////////////////////////////////////////////////////////////////////////////
-	//https://stackoverflow.com/questions/15411022/how-do-i-replace-a-tuple-element-at-compile-time
-	/////////////////////////////////////////////////////////////////////////////////////////////////
-
 	template <typename>
 	constexpr std::tuple<> paramType()
 	{
@@ -37,9 +33,8 @@ namespace detail
 		return std::tuple<T>();
 	}
 
-	//Doesn't work for empty Args
 	template <class T, class... Args>
-	constexpr auto invokeResultType(T&& t, Args&&... args) -> decltype(auto)
+	constexpr std::tuple<T, Args...> invokeResultType(T&& t, Args&&... args)
 	{
 		return (sizeof...(Args) == 0) ? paramType(t) :
 			std::tuple_cat<paramType(t), invokeResultType<T, Args...>(t, args...)>();
@@ -55,7 +50,10 @@ namespace detail
 	template <class F, class... Args>
 	concept is_void = requires(Args&&... args)
 	{
-		std::is_same<std::invoke_result<F>, void>::value == true;
+		// This sums upo my whole day. I wanted to make a function that returns a tuple 
+		// of types of args thatF takes, but apparently invoke_result_t don't give a fuck,
+		// because function is not a type.
+		std::is_same<std::invoke_result<F, invokeResultType(args...)>, void>::value == true;
 	};
 
 	template <class F>
@@ -131,7 +129,7 @@ constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
 	}
 	else
 	{
-		constexpr std::tuple<int, int> sexu = detail::invokeResultType(args...);
+		constexpr auto test = detail::invokeResultType(args, args...);
 		// TODO: recursive bullshit
 	}
 }
