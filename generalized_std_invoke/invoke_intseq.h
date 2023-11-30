@@ -131,7 +131,7 @@ constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
 	}
 	else
 	{
-		constexpr std::tuple<int, int> sexu = detail::invokeResultType(args...);
+		constexpr std::tuple<int, int> sexu = detail::invokeResultType(std::forward<Args>(args)...);
 		// TODO: recursive bullshit
 	}
 }
