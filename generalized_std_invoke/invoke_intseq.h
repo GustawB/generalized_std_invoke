@@ -15,36 +15,21 @@
 // https://en.cppreference.com/w/cpp/utility/functional/invoke
 namespace detail
 {
-	/////////////////////////////////////////////////////////////////////////////////////////////////
-	//https://stackoverflow.com/questions/15411022/how-do-i-replace-a-tuple-element-at-compile-time
-	/////////////////////////////////////////////////////////////////////////////////////////////////
-
-	template <typename>
-	constexpr std::tuple<> paramType()
-	{
-		return std::tuple<>();
-	}
-
+	// Wrapper to hold a type of a 'simple variable.
 	template <typename T>
-	constexpr std::tuple<T> paramType(T)
+	struct Wrapper 
 	{
-		return std::tuple<T>();
-	}
+		using type = T;
+	};
 
-	template <class T, T... ints>
-	constexpr std::tuple<T> paramType(std::integer_sequence<T, ints...>)
+	// Wrapper to swap intseq to intconst
+	template <typename T, T... ints>
+	struct Wrapper<std::integer_sequence < T, ints...>>
 	{
-		return std::tuple<T>();
-	}
+		using type = typename std::integral_constant<T, 0>; // 0 is a dummy variable.
+	};
 
-	//Doesn't work for empty Args
-	template <class T, class... Args>
-	constexpr auto invokeResultType(T&& t, Args&&... args) -> decltype(auto)
-	{
-		return (sizeof...(Args) == 0) ? paramType(t) :
-			std::tuple_cat<paramType(t), invokeResultType<T, Args...>(t, args...)>();
-	}
-
+	// Concept to check whether we have a intseq in Args... or not.
 	template <class T>
 	concept is_intseq = requires (T a)
 	{
@@ -52,42 +37,51 @@ namespace detail
 		[] <class U, U... ints> (std::integer_sequence<U, ints...>) {}(a);
 	};
 
-	template <class F, class... Args>
-	concept is_void = requires(Args&&... args)
+	// Wrapper wrapping the size of a "simple" variable (always 1).
+	template <class T>
+	struct sizeCalc
 	{
-		std::is_same<std::invoke_result<F>, void>::value == true;
+		static constexpr size_t size = 1;
 	};
 
-	template <class F>
-	concept is_not_void = requires()
+	// Wrapper wrapping the size of a intseq.
+	template <class T, T... ints>
+	struct sizeCalc<std::integer_sequence<T, ints...>>
 	{
-		std::is_same<std::invoke_result<F>, void>::value == false;
+		static constexpr size_t size = sizeof...(ints);
 	};
 
 	template <typename T>
-	constexpr size_t paramLength(T)
+	constexpr static size_t paramLength(T&&)
 	{
 		return 1;
 	}
 
 	template <class T, T... ints>
-	constexpr size_t paramLength(std::integer_sequence<T, ints...>)
+	constexpr static size_t paramLength(std::integer_sequence<T, ints...>&&)
 	{
 		return sizeof...(ints);
 	}
 
 	//Doesn't work for empty Args
 	template <class T, class... Args>
-	constexpr size_t nmbOfInvokes(T&& t, Args&&... args)
+	constexpr static size_t nmbOfInvokes(T&& t, Args&&... args)
 	{
-		return (sizeof...(Args) == 0) ? paramLength(t) :
-			paramLength(t) * nmbOfInvokes<T, Args...>(t, args...);
+		if constexpr (sizeof...(Args) == 0)
+		{
+			return paramLength(std::forward<T>(t));
+		}
+		else
+		{
+			return paramLength(std::forward<T>(t)) *
+				nmbOfInvokes<T, Args...>(std::forward<T>(t), std::forward<Args>(args)...);
+		}
 	}
 
 	template <class type_to_check, class Arg>
 	constexpr bool compareTypes(Arg&& arg)
 	{
-		return std::is_same<type_to_check, decltype(arg)>::value;
+		return std::is_same_v<type_to_check, decltype(arg)>;
 	}
 
 	template<class type_to_check, class... Args>
@@ -96,28 +90,23 @@ namespace detail
 		return (... && compareTypes(std::forward<Args>(args)));
 	}
 
+	// Main logic function, overload for F's that return void.
 	template <class F, class... Args>
-	requires is_void<F>
-		constexpr void invoke()
-	{
-
-	};
-
-	// Function used to recursively perform all calls of F.
-	template <class F, class... Args>
-	requires is_not_void<F>
+	requires std::is_void_v<std::invoke_result_t<F, typename Wrapper<Args>::type...>>
 		constexpr void invoke(F&& f, Args&&... args)
 	{
-		constexpr size_t result_size = detail::nmbOfInvokes(args...);
-		std::array<std::invoke_result_t<F>, result_size> invokeResults;
 
 	};
 
-	template <class F, class... Args, size_t SIZE>
-	requires is_not_void<F>
-		constexpr void invoke(F&& f, const std::array<std::invoke_result_t<F>, SIZE>, size_t index, Args&&... args)
+	// Main logic function, overload for F's that return non-void.
+	template <class F, class... Args>
+		constexpr auto invoke(F&& f, Args&&... args) -> decltype(auto)
 	{
+		constexpr size_t result_size = (... * sizeCalc<Args>::size);
+		std::array<std::invoke_result_t<F, 
+			typename Wrapper<Args>::type...>, result_size> results;
 
+		return results;
 	};
 } // namespace detail
 
@@ -131,8 +120,8 @@ constexpr auto invoke_intseq(F&& f, Args&&... args) -> decltype(auto)
 	}
 	else
 	{
-		constexpr std::tuple<int, int> sexu = detail::invokeResultType(std::forward<Args>(args)...);
 		// TODO: recursive bullshit
+		return detail::invoke(std::forward<F>(f), std::forward<Args>(args)...);
 	}
 }
 
